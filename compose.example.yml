@@ -1,0 +1,24 @@
+# Review hosting, TLS and database roles before deployment. No credentials are provided here.
+services:
+  web:
+    build: .
+    environment:
+      APP_ENV: production
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set through secure environment management}
+      DATABASE_URL: ${DATABASE_URL:?Use a non-owner PostgreSQL runtime identity with verified TLS}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?Set the exact hostname}
+    ports:
+      - "8443:8443"
+    secrets:
+      - tls_cert
+      - tls_key
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.runtime:uid=10001,gid=10001,mode=0700
+secrets:
+  tls_cert:
+    file: ${TLS_CERT_FILE:?Path to trusted certificate chain}
+  tls_key:
+    file: ${TLS_KEY_FILE:?Path to matching private key}
