@@ -41,7 +41,7 @@ This is the same source application as the cloud workspace. The local database i
    ./scripts/open_local_invitation.sh
    ```
 
-   Your browser opens the private enrollment page. Set a password and enroll an authenticator app for the displayed code. Then sign in. Choose **Test workspace** to explore the synthetic purchasing, mold, manufacturing, inventory, sales, accounting, profit-sharing, and approval records. The live division stays disabled for financial execution. A fresh joint approval waits for Sami to receive his own invitation; the existing sample decisions show completed two-person approvals.
+   Your browser opens the private enrollment page. Set a password and enroll an authenticator app for the displayed code. Then sign in. Choose **Test workspace** to explore synthetic payments, outstanding amounts, a saved calculator scenario, an approved decision, and preserved historical purchasing and manufacturing records. The live division stays disabled for financial execution. A fresh joint approval waits for Sami to receive his own invitation; the existing sample decisions show completed two-person approvals.
 
 ## Tomorrow and later
 
@@ -62,3 +62,17 @@ Nothing in local testing sends real payments, transfers, statutory invoices, or 
 - If `git clone` says the destination exists, use `cd ~/business-dashboard` to open the existing copy; do not delete it.
 - If port 8000 is busy, close the other app using it, then rerun `./scripts/start.sh`.
 - If an invitation expired, ask for a new local invitation before creating a user; do not share the private path publicly.
+
+## Update an existing Mac installation safely
+
+Your Mac's database is **not** in GitHub. Keep `~/business-dashboard/.runtime/` and do not clone over or delete your existing folder. Close the running app Terminal window, then open Terminal and run these commands one at a time:
+
+```sh
+cd ~/business-dashboard
+git pull --ff-only origin main
+./scripts/backup_before_upgrade.sh
+./scripts/install.sh
+./scripts/start.sh
+```
+
+The backup command saves a full PostgreSQL backup, including stored document bytes and accounts, in `~/business-dashboard/.runtime/backups/` with a checksum. The install command adds the new tables through migrations and leaves the old tables and records intact. It adds simple synthetic examples only to the Test workspace if there are no existing simple entries. Your old invitation, password and authenticator remain valid; after startup, open **http://127.0.0.1:8000/login/**. If `git pull` reports local changes or the backup command fails, stop and keep your existing folder unchanged rather than deleting it.

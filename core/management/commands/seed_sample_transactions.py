@@ -39,9 +39,9 @@ class Command(BaseCommand):
             services.sign(demo,first,dec.pk,1,version.digest,'synthetic-auth-event-a')
             services.sign(demo,second,dec.pk,1,version.digest,'synthetic-auth-event-b')
             return services.execute(demo,first,dec.pk,1,'sample-'+str(dec.pk))
-        action('funding_direct',amount='10000',party='Sample funder',classification='loan',evidence_id=str(evidence.pk))
-        action('funding_cash',amount='60000',party='Sample funder',classification='loan',evidence_id=str(evidence.pk))
-        mold=Record.objects.get(division=demo,kind='mold')
+        action('journal',lines=[{'account':'bank','debit':'60000'},{'account':'equity','credit':'60000'}],reason='Synthetic starting bank balance; no external transfer')
+        action('supplier_advance',party='Sample mold vendor',amount='10000',beneficiary='SAMPLE-MOLD-VENDOR',evidence_id=str(evidence.pk))
+        mold=Record.objects.create(division=demo,kind='mold',title='Sample mold',status='synthetic',source_status='synthetic',data={'purpose':'sample only'})
         action('mold_acceptance',amount='10000',inspection='Synthetic acceptance only',mold_id=str(mold.pk))
         purchase=action('purchase_order',party='Sample factory',quantity='100000',sku='FLW-001',amount='36900',due_date=today)
         production=action('production_release',purchase_order_id=purchase.result['record_id'],party='Sample factory',sku='FLW-001',quantity='100000',mold='Sample mold',rate='4.50',charge_basis='input_kg',material_ownership='factory')
@@ -53,7 +53,6 @@ class Command(BaseCommand):
         delivery=action('delivery',order_id=sale.result['order_id'],quantity='1000')
         action('customer_invoice',delivery_id=delivery.result['delivery_id'])
         action('collection',item_id=delivery.result['item_id'],amount='700',evidence_id=str(evidence.pk))
-        action('repayment',amount='1000',beneficiary='Sample funder',evidence_id=str(evidence.pk),counterparty_consent='Synthetic consent for walkthrough')
         Record.objects.create(division=demo,kind='sample_dataset',title='Synthetic walkthrough installed',status='sample_only',source_status='synthetic',data={'purpose':'training only','external_actions':'none','decision_count':Decision.objects.filter(division=demo).count()})
         # Preserve historical approval evidence; these example identities cannot
         # sign in or approve the real operators' future test decisions.

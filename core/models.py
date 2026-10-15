@@ -68,6 +68,9 @@ class Record(Scoped):
 
 class Document(Scoped):
     name=models.CharField(max_length=200)
+    category=models.CharField(max_length=80,blank=True)
+    supplier=models.CharField(max_length=200,blank=True)
+    reference=models.CharField(max_length=100,blank=True)
     media_type=models.CharField(max_length=100)
     sha256=models.CharField(max_length=64)
     content=models.BinaryField()
@@ -177,3 +180,82 @@ class Contract(Scoped):
     internal_decision=models.ForeignKey(Decision,null=True,on_delete=models.PROTECT)
     evidence=models.ForeignKey(Document,null=True,on_delete=models.PROTECT)
     provider_reference=models.CharField(max_length=200,blank=True)
+
+# The simple management register is additive. Historical journals and decisions
+# remain immutable and available for reconciliation/export.
+class FinanceTransaction(Scoped):
+    date=models.DateField()
+    direction=models.CharField(max_length=12,choices=[('received','Money in'),('paid','Money out')])
+    amount=models.DecimalField(max_digits=22,decimal_places=2,default=0)
+    total_due=models.DecimalField(max_digits=22,decimal_places=2,null=True,blank=True)
+    category=models.CharField(max_length=80)
+    description=models.CharField(max_length=250)
+    party=models.CharField(max_length=200,blank=True)
+    method=models.CharField(max_length=40,choices=[('bank','Bank'),('cash','Cash'),('other','Other')],default='bank')
+    reference=models.CharField(max_length=100,blank=True)
+    notes=models.TextField(blank=True)
+    treatment=models.CharField(max_length=20,choices=[('income','Income'),('expense','Expense'),('asset','Asset purchase'),('transfer','Transfer'),('none','No profit effect')],default='none')
+    recognized_amount=models.DecimalField(max_digits=22,decimal_places=2,default=0)
+    settles=models.ForeignKey('self',null=True,blank=True,on_delete=models.PROTECT,related_name='payments')
+    refund_of=models.ForeignKey('self',null=True,blank=True,on_delete=models.PROTECT,related_name='refunds')
+    decision=models.ForeignKey('SimpleDecision',null=True,blank=True,on_delete=models.PROTECT,related_name='transactions')
+    created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    updated_at=models.DateTimeField(auto_now=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['division','reference'],condition=~Q(reference=''),name='simple_transaction_unique_reference'),models.CheckConstraint(condition=Q(amount__gte=0),name='simple_transaction_nonnegative_cash'),models.CheckConstraint(condition=Q(total_due__gte=0)|Q(total_due__isnull=True),name='simple_transaction_nonnegative_due')]
+
+class TransactionRevision(models.Model):
+    transaction=models.ForeignKey(FinanceTransaction,on_delete=models.PROTECT,related_name='revisions')
+    actor=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    snapshot=models.JSONField()
+    created_at=models.DateTimeField(default=timezone.now)
+
+class DocumentLink(models.Model):
+    document=models.ForeignKey(Document,on_delete=models.PROTECT,related_name='simple_links')
+    transaction=models.ForeignKey(FinanceTransaction,null=True,blank=True,on_delete=models.PROTECT,related_name='attachments')
+    decision=models.ForeignKey('SimpleDecision',null=True,blank=True,on_delete=models.PROTECT,related_name='attachments')
+    category=models.CharField(max_length=80,blank=True)
+    supplier=models.CharField(max_length=200,blank=True)
+    reference=models.CharField(max_length=100,blank=True)
+    class Meta: constraints=[models.CheckConstraint(condition=Q(transaction__isnull=True)|Q(decision__isnull=True),name='document_link_one_parent')]
+
+class SavedScenario(Scoped):
+    name=models.CharField(max_length=200)
+    investment=models.DecimalField(max_digits=22,decimal_places=2,default=0)
+    unit_cost=models.DecimalField(max_digits=22,decimal_places=2)
+    selling_price=models.DecimalField(max_digits=22,decimal_places=2)
+    quantity=models.PositiveIntegerField()
+    extra_expenses=models.DecimalField(max_digits=22,decimal_places=2,default=0)
+    created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+
+class SimpleDecision(Scoped):
+    title=models.CharField(max_length=200)
+    description=models.TextField()
+    estimated_cost=models.DecimalField(max_digits=22,decimal_places=2,default=0)
+    expected_benefit=models.TextField(blank=True)
+    risks=models.TextField(blank=True)
+    scenario=models.ForeignKey(SavedScenario,null=True,blank=True,on_delete=models.PROTECT)
+    required_approvals=models.PositiveSmallIntegerField(default=2)
+    status=models.CharField(max_length=20,default='pending')
+    created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    class Meta: constraints=[models.CheckConstraint(condition=Q(required_approvals__in=[1,2]),name='simple_decision_approval_count')]
+
+class DecisionVote(models.Model):
+    decision=models.ForeignKey(SimpleDecision,on_delete=models.PROTECT,related_name='votes')
+    user=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    choice=models.CharField(max_length=10,choices=[('approve','Approve'),('reject','Reject')])
+    created_at=models.DateTimeField(default=timezone.now)
+    class Meta: constraints=[models.UniqueConstraint(fields=['decision','user'],name='simple_decision_one_vote_per_user')]
+
+class DecisionComment(models.Model):
+    decision=models.ForeignKey(SimpleDecision,on_delete=models.PROTECT,related_name='comments')
+    user=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    text=models.TextField()
+    created_at=models.DateTimeField(default=timezone.now)
+
+class CashOpening(Scoped):
+    method=models.CharField(max_length=10,choices=[('bank','Bank'),('cash','Cash')])
+    amount=models.DecimalField(max_digits=22,decimal_places=2)
+    as_of=models.DateField()
+    recorded_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+    class Meta: constraints=[models.UniqueConstraint(fields=['division','method'],name='one_simple_opening_per_method')]

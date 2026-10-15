@@ -1,4 +1,18 @@
-{% load static %}<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{% block title %}Plastics · business workspace{% endblock %}</title><link rel="stylesheet" href="{% static 'core/app.css' %}"></head><body>
-{% if division %}<aside class="sidebar"><a class="brand" href="{% url 'home' %}"><span class="brandmark">p.</span> plastics<span class="brand-dot">●</span></a><div class="workspace-tag">{{ division.name }}<small>{% if division.is_demo %}TEST WORKSPACE · SYNTHETIC{% else %}SETUP · LIVE POSTING LOCKED{% endif %}</small></div><nav aria-label="Main navigation">{% for key,label,icon in nav %}<a href="{% url 'page' division.id key %}" class="{% if section == key %}active{% endif %}"><span>{{ icon }}</span>{{ label }}</a>{% endfor %}</nav><div class="sidebar-bottom"><span class="avatar">{{ request.user.first_name|first|default:'U' }}</span><div>{{ request.user.first_name|default:request.user.username }}<small>{{ membership.get_role_display }}</small></div></div></aside>{% endif %}
-<div class="{% if division %}shell{% else %}public-shell{% endif %}">{% if division %}<header class="topbar"><div>Workspace <span>/</span> {{ title|default:'Review' }}</div><form action="{% url 'search' division.id %}" class="search"><label class="sr-only" for="search">Search workspace</label><input id="search" name="q" placeholder="Search records, decisions, documents…" value="{{ query }}"><button aria-label="Search">⌕</button></form><a href="{% url 'reauth' %}">Signing security</a><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="text-button">Sign out</button></form></header>{% endif %}
-<main>{% for message in messages %}<div class="notice success">{{ message }}</div>{% endfor %}{% block content %}{% endblock %}</main><footer>Division management workspace · SAR · Asia/Riyadh <span>Human decisions. Traceable records.</span></footer></div></body></html>
+{% load static %}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Business Finance{% endblock %}</title><link rel="stylesheet" href="{% static 'core/app.css' %}"></head><body>
+{% if division %}<aside class="sidebar">
+<a class="brand" href="{% url 'home' %}"><span class="brandmark">B</span> Business Finance</a>
+<div class="workspace-tag">{{ division.name }}<small>{% if division.is_demo %}TEST WORKSPACE · SAMPLE DATA{% else %}LIVE WORKSPACE · FINANCIAL EXECUTION LOCKED{% endif %}</small></div>
+<nav aria-label="Main navigation">
+<a href="{% url 'dashboard' division.id %}" class="{% if section == 'dashboard' %}active{% endif %}">◈ &nbsp; Dashboard</a>
+<a href="{% url 'simple_transactions' division.id %}" class="{% if section == 'transactions' %}active{% endif %}">↔ &nbsp; Transactions</a>
+<a href="{% url 'simple_calculator' division.id %}" class="{% if section == 'calculator' %}active{% endif %}">◇ &nbsp; Decision Calculator</a>
+<a href="{% url 'simple_decisions' division.id %}" class="{% if section == 'decisions' %}active{% endif %}">✓ &nbsp; Decisions &amp; Approvals</a>
+<a href="{% url 'simple_documents' division.id %}" class="{% if section == 'documents' %}active{% endif %}">▱ &nbsp; Documents</a>
+<a href="{% url 'simple_reports' division.id %}" class="{% if section == 'reports' %}active{% endif %}">▥ &nbsp; Reports</a>
+</nav><div class="sidebar-bottom"><span class="avatar">{{ request.user.first_name|first|default:'U' }}</span><div>{{ request.user.first_name|default:request.user.username }}<small>{{ membership.get_role_display }}</small></div></div></aside>{% endif %}
+<div class="{% if division %}shell{% else %}public-shell{% endif %}">
+{% if division %}<header class="topbar"><div>{{ title|default:'Business Finance' }}</div><div class="top-actions"><a href="{% url 'simple_transaction_new' division.id %}">+ Payment</a><a href="{% url 'simple_decision_new' division.id %}">+ Decision</a><a href="{% url 'reauth' %}">Security</a><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="text-button">Sign out</button></form></div></header>{% endif %}
+<main>{% for message in messages %}<div class="notice success">{{ message }}</div>{% endfor %}{% block content %}{% endblock %}</main><footer>Management records · SAR{% if division.is_demo %} · sample data{% endif %}</footer></div></body></html>

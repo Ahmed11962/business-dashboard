@@ -1,0 +1,11 @@
+# Simplification and preservation
+
+The pre-change cloud PostgreSQL database was backed up to an ignored `.runtime/before-simplification-*.dump` archive with a SHA-256 checksum before the `simplify-finance-dashboard` branch was created. The migrations add management-register tables and document links; they do not reset or delete legacy tables, historical decisions, journals, evidence, identities, authenticator factors or audit chains. A second ignored backup can be made with `scripts/backup_before_upgrade.sh` before applying the migrations on any Mac.
+
+The new six-section UI deliberately omits father-specific funding, repayment and ownership assumptions. Existing records with such text are retained as historical data, because silently rewriting or deleting them would harm the audit trail. Fresh workspaces start without an assumed payer, investment structure, sale or opening balance. The new Test workspace walkthrough uses synthetic supplier and customer entries with disabled sample identities; no external payment or invoice is sent.
+
+New transactions form a management register, not an automatic posting into the historical general ledger. Cash is the sum of payments received less payments paid. Profit uses the chosen income/expense treatment and recognizes an unpaid total due once, while later partial payments affect cash only. Refunds reverse cash and the original profit treatment. Asset purchases and transfers have no automatic profit effect. An entered closing balance for bank or cash is combined with later recorded movements; without it, a current balance is unknown. Posted historical numbers appear separately to prevent double counting.
+
+New management decisions can require one or two individual approvals. Votes require a recent password/authenticator recheck, are immutable once recorded, and cannot be duplicated. Approvals record a decision; they never issue a payment or invoice. Historical detailed decisions and joint signatures remain available through their original links.
+
+This is still a management testing release. The authoritative accounting system, tax treatment, live document scanning, production hosting, bank confirmation and backup retention need agreement before going live. See GO_LIVE.md for the broader checklist.

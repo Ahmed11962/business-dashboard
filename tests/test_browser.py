@@ -32,11 +32,14 @@ def test_two_operator_browser_workflow(world,live_server):
         codes={}
         for p,u in zip(pages,(a,b)):
             p.goto(base+'/login/'); p.locator('[name=username]').fill(u.username); p.locator('[name=password]').fill('synthetic-test-password')
+            while time.time()%30>20: time.sleep(.1)
             code=pyotp.TOTP(secrets[u.pk]).now(); codes[u.pk]=code; p.locator('[name=code]').fill(code); p.get_by_role('button',name='Sign in').click(); expect(p.get_by_role('heading',name='Choose a workspace')).to_be_visible()
         # TOTP is one-use; wait for a genuinely new code rather than weakening replay protections.
         while any(pyotp.TOTP(secrets[u.pk]).now()==codes[u.pk] for u in (a,b)): time.sleep(.3)
         for p,u in zip(pages,(a,b)):
-            p.goto(base+'/security/reauth/'); p.locator('[name=password]').fill('synthetic-test-password'); p.locator('[name=code]').fill(pyotp.TOTP(secrets[u.pk]).now()); p.get_by_role('button',name='Verify for signing').click(); expect(p.get_by_role('heading',name='Choose a workspace')).to_be_visible()
+            p.goto(base+'/security/reauth/'); p.locator('[name=password]').fill('synthetic-test-password')
+            while time.time()%30>20: time.sleep(.1)
+            p.locator('[name=code]').fill(pyotp.TOTP(secrets[u.pk]).now()); p.get_by_role('button',name='Verify for signing').click(); expect(p.get_by_role('heading',name='Choose a workspace')).to_be_visible()
         first,second=pages
         def action(kind,**extra):
             data=payload(**extra); first.goto(base+reverse('decision_new',args=[d.pk])+'?kind='+kind)
@@ -65,7 +68,7 @@ def test_two_operator_browser_workflow(world,live_server):
         assert result['unreconciled']==0 and all(result['ties'].values())
         assert result['revenue']==2000 and result['gross_profit']==1631
         assert dbcall(lambda:Signature.objects.count())==18 and dbcall(lambda:Execution.objects.count())==9
-        first.goto(base+reverse('dashboard',args=[d.pk])); expect(first.get_by_role('heading',name='Business overview')).to_be_visible()
+        first.goto(base+reverse('dashboard',args=[d.pk])); expect(first.get_by_role('heading',name='Dashboard',exact=True)).to_be_visible()
         shots=Path(__file__).resolve().parent.parent/'docs'/'screenshots'; shots.mkdir(exist_ok=True)
         first.screenshot(path=str(shots/'desktop-test-workspace.png'),full_page=True)
         first.set_viewport_size({'width':390,'height':844}); first.screenshot(path=str(shots/'mobile-test-workspace.png'),full_page=True)

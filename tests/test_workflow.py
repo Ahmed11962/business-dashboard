@@ -13,8 +13,8 @@ def test_unverified_seeds_do_not_post(world):
     d,*_=world
     assert Journal.objects.count()==0 and Stock.objects.count()==0
     assert reports.report(d)['cash'] is None
-    assert Record.objects.get(division=d,kind='funding_draft').data['amount_sar']=='10000'
-    assert Record.objects.get(division=d,kind='commitment').data['recognized_payable'] is False
+    assert not Record.objects.filter(division=d,kind='funding_draft').exists()
+    assert not Record.objects.filter(division=d,kind='commitment').exists()
     assert reports.forecast(d)[0]['ending_cash'] is None
 
 def test_direct_funding_and_duplicate_source(world):
@@ -139,7 +139,7 @@ def test_management_statements_reconcile(world,sold):
     assert r['position_balances']
     assert r['cashflow']['operating']==500
     assert sum(x['gross_profit'] for x in r['batches'])==reports.report(d)['gross_profit']
-    assert len(r['commitments'])==2
+    assert len(r['commitments'])==1
 
 def test_supplier_advance_refund_and_mold_asset_not_double_expensed(world):
     d,a,b,doc=world
@@ -147,7 +147,7 @@ def test_supplier_advance_refund_and_mold_asset_not_double_expensed(world):
     perform(world,'supplier_advance',party='Test mold supplier',amount='10000',beneficiary='Test supplier',evidence_id=str(doc.pk))
     perform(world,'supplier_refund',party='Test mold supplier',amount='1000',evidence_id=str(doc.pk))
     assert services.balance(d,'supplier_advance')==9000 and services.balance(d,'bank')==11000
-    mold=Record.objects.get(division=d,kind='mold')
+    mold=Record.objects.create(division=d,kind='mold',title='Synthetic mold',source_status='synthetic')
     perform(world,'mold_acceptance',amount='9000',inspection='Synthetic mold accepted',mold_id=str(mold.pk))
     assert services.balance(d,'mold_asset')==9000 and reports.report(d)['operating_result']==0
     perform(world,'depreciation',amount='100',mold_id=str(mold.pk),policy='Synthetic reviewed policy',allocation='operating')

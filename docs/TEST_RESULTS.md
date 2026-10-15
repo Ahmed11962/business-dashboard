@@ -1,6 +1,6 @@
 # Executed validation — 15 October 2026, Asia/Riyadh
 
-The latest full run of `.venv/bin/pytest -q` completed with **48 passed, 0 failed, 0 errors, 0 skipped**, in 41.64 seconds. PostgreSQL and real Chromium were used, not SQLite or browser mocks. One harmless local-runtime warning reports that `XDG_RUNTIME_DIR` falls back to `/tmp/runtime-1000` for the bundled PostgreSQL launcher.
+The latest full run of `.venv/bin/pytest -q --disable-warnings --maxfail=1` completed with **53 passed, 0 failed, 0 errors, 0 skipped**, in 41.31 seconds. PostgreSQL and real Chromium were used, not SQLite or browser mocks. One harmless local-runtime warning reports that `XDG_RUNTIME_DIR` falls back to `/tmp/runtime-1000` for the bundled PostgreSQL launcher.
 
 ## What executed
 
@@ -30,4 +30,8 @@ The first browser run exposed a genuine PostgreSQL immutability bug under nested
 
 ## Not established by these tests
 
-No real invitation emails were provided or sent. No production users, verified balances, invoices or transactions were created. Hosted ingress/TLS, provider webhooks, statutory e-invoicing, malware scanning, managed backup scheduling/PITR, legal/tax/accounting review, load testing and complete brief scope are not established. See REQUIREMENTS.md and GO_LIVE.md. Live execution remains disabled in application and database code.
+No invitation emails were sent. No production users, verified balances, invoices or transactions were created. Hosted ingress/TLS, provider webhooks, statutory e-invoicing, malware scanning, managed backup scheduling/PITR, legal/tax/accounting review, load testing and complete brief scope are not established. See REQUIREMENTS.md and GO_LIVE.md. Live execution remains disabled in application and database code.
+
+## Simplified dashboard validation
+
+The added tests cover SAR scenario math and break-even, cash versus recognized expense, unpaid and partial balances, refunds, duplicate references, audited edits, multiple PDF/image attachments, browser preview/download, Excel/PDF/CSV exports, opening balances, reader restrictions, two independent votes with recent reauthentication, tenant isolation and repeatable synthetic seeding. Additive migrations 0005–0011 were applied to the retained cloud database; `verify_integrity` passed afterward without rewriting historical postings. The Mac upgrade path includes a full pre-migration PostgreSQL backup.

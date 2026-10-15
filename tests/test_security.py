@@ -3,6 +3,7 @@ import pytest,pyotp
 from django.contrib.auth.models import User
 from django.db import connection,transaction,DatabaseError
 from django.urls import reverse
+from django.utils import timezone
 from core.models import *
 from core import services,contracts
 from core.finance import BusinessError
@@ -47,7 +48,7 @@ def test_all_pages_and_no_forecast_as_actual(world,client):
     from core.views import NAV
     for section,_,_ in NAV:
         r=client.get(reverse('page',args=[d.pk,section])); assert r.status_code==200,(section,r.content[:200])
-    r=client.get(reverse('dashboard',args=[d.pk])); assert b'Not configured' in r.content and b'FORECAST' in r.content
+    r=client.get(reverse('dashboard',args=[d.pk])); assert b'Not set' in r.content and b'Estimated profit' in r.content
     assert client.get(reverse('scenario',args=[d.pk])).status_code==200
 
 def test_contract_internal_approval_never_external_execution(world,client):
@@ -78,6 +79,8 @@ def test_archive_private_document_integrity(world,client):
 
 def test_postgres_row_security_with_nonowner_role(world):
     d,a,b,doc=world; outsider=User.objects.create_user('other@example.invalid')
+    entry=FinanceTransaction.objects.create(division=d,date=timezone.localdate(),direction='paid',amount='10',category='Test',description='Synthetic RLS entry',method='bank',treatment='expense',recognized_amount='10',created_by=a)
+    DocumentLink.objects.create(document=doc,transaction=entry)
     # Ephemeral role is created by the test database owner; web deployment uses the same non-owner pattern.
     role='rls_test_'+uuid.uuid4().hex[:12]
     with connection.cursor() as c:
@@ -86,8 +89,12 @@ def test_postgres_row_security_with_nonowner_role(world):
         with transaction.atomic(),connection.cursor() as c:
             c.execute(f'SET LOCAL ROLE {role}'); c.execute("SELECT set_config('app.user_id',%s,true)",[str(outsider.pk)])
             c.execute('SELECT count(*) FROM core_document'); assert c.fetchone()[0]==0
+            c.execute('SELECT count(*) FROM core_financetransaction'); assert c.fetchone()[0]==0
+            c.execute('SELECT count(*) FROM core_documentlink'); assert c.fetchone()[0]==0
             c.execute("SELECT set_config('app.user_id',%s,true)",[str(a.pk)])
             c.execute('SELECT count(*) FROM core_document'); assert c.fetchone()[0]==1
+            c.execute('SELECT count(*) FROM core_financetransaction'); assert c.fetchone()[0]==1
+            c.execute('SELECT count(*) FROM core_documentlink'); assert c.fetchone()[0]==1
     finally:
         with connection.cursor() as c: c.execute(f'DROP OWNED BY {role}'); c.execute(f'DROP ROLE {role}')
 
