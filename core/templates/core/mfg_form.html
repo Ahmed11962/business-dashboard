@@ -1,0 +1,5 @@
+{% extends 'core/base.html' %}{% block content %}
+<div class="heading"><div><div class="eyebrow">Manufacturing</div><h1>{{ heading }}</h1><p>Amounts are in SAR. Supporting files stay private to this workspace.</p></div></div>
+<section class="panel form-panel"><form method="post" enctype="multipart/form-data">{% csrf_token %}{{ form.as_p }}
+{% if upload %}<label>Picture (JPG or PNG)</label><input type="file" name="image" accept="image/jpeg,image/png"><label>Supporting documents</label><input type="file" name="files" accept="image/jpeg,image/png,application/pdf" multiple>{% endif %}
+<div class="form-actions"><button>Save</button><a href="javascript:history.back()" class="button secondary">Cancel</a></div></form></section>{% endblock %}

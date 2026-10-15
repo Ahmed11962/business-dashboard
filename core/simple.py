@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from .models import (FinanceTransaction, TransactionRevision, SavedScenario, SimpleDecision,
-                     DecisionVote, DecisionComment, Document, DocumentLink, Journal, Decision, CashOpening)
+                     DecisionVote, DecisionComment, Document, DocumentLink, Journal, Decision, CashOpening, CashAccount, ReinvestmentPlan)
 from .finance import BusinessError, money
 from .simple_finance import calculate_scenario, outstanding, summary, account_balances
 from .security import require_role, require_reauth
@@ -39,7 +39,7 @@ def files(request,div,parent=None):
 class TransactionForm(forms.ModelForm):
     class Meta:
         model=FinanceTransaction
-        fields=['date','direction','amount','total_due','category','description','party','method','reference','notes','treatment','settles','refund_of','decision']
+        fields=['date','direction','amount','total_due','category','description','party','method','account','reinvestment_plan','reference','notes','treatment','settles','refund_of','decision']
         widgets={'date':forms.DateInput(attrs={'type':'date'}),'notes':forms.Textarea(attrs={'rows':3})}
         labels={'direction':'Payment type','amount':'Amount paid or received (SAR)','party':'Payer or payee (optional)','method':'Payment method','reference':'Reference number (optional)','total_due':'Total owed (optional)','settles':'Partial payment for (optional)','refund_of':'Refund of (optional)','treatment':'Effect on estimated profit'}
     def __init__(self,*args,division=None,**kwargs):
@@ -48,10 +48,16 @@ class TransactionForm(forms.ModelForm):
         self.fields['settles'].queryset=FinanceTransaction.objects.filter(division=division,total_due__isnull=False,settles__isnull=True,refund_of__isnull=True)
         self.fields['refund_of'].queryset=FinanceTransaction.objects.filter(division=division,refund_of__isnull=True)
         self.fields['decision'].queryset=SimpleDecision.objects.filter(division=division)
+        self.fields['account'].queryset=CashAccount.objects.filter(division=division)
+        self.fields['reinvestment_plan'].queryset=ReinvestmentPlan.objects.filter(division=division)
         if self.instance._state.adding: self.fields['date'].initial=timezone.localdate()
     def clean(self):
         p=super().clean(); amount=p.get('amount'); due=p.get('total_due'); settles=p.get('settles'); refund=p.get('refund_of')
         if amount is None: return p
+        if p.get('category','').strip().lower() in ('capital contribution','capital repayment','partner distribution','mold payment','production payment') and p.get('treatment') in ('income','expense'):
+            self.add_error('treatment','This cash category does not create sales income or operating expense.')
+        if p.get('account') and p.get('method')!=p['account'].kind: self.add_error('account','Choose an account matching the payment method.')
+        if p.get('reinvestment_plan') and p.get('direction')!='paid': self.add_error('reinvestment_plan','Reinvestment allocations can only be linked to spending.')
         if due is not None and amount>due: self.add_error('amount','Money received or paid cannot exceed the total owed.')
         if settles and refund: raise forms.ValidationError('Choose either a partial payment or a refund.')
         if settles:
@@ -82,7 +88,7 @@ class TransactionForm(forms.ModelForm):
         return p
 
 def snapshot(t):
-    return {k:str(getattr(t,k)) if getattr(t,k) is not None else None for k in ('date','direction','amount','total_due','category','description','party','method','reference','notes','treatment','recognized_amount','settles_id','refund_of_id','decision_id')}
+    return {k:str(getattr(t,k)) if getattr(t,k) is not None else None for k in ('date','direction','amount','total_due','category','description','party','method','account_id','reinvestment_plan_id','reference','notes','treatment','recognized_amount','settles_id','refund_of_id','decision_id')}
 
 def save_transaction(form,div,user):
     services.lock(div); t=form.save(commit=False)
@@ -146,6 +152,8 @@ def transactions(request,div):
 def transaction_form(request,div,entry_id=None):
     require_role(request.user,div,('operator',))
     t=get_object_or_404(FinanceTransaction,division=div,pk=entry_id) if entry_id else None
+    if t and (t.mold_id or t.batch_id or t.invoice_id or hasattr(t,'capital_contribution') or hasattr(t,'capital_repayment')):
+        raise BusinessError('Linked payments are fixed. Record a refund or correction against the original record.')
     form=TransactionForm(request.POST or None,instance=t,division=div)
     if request.method=='POST' and form.is_valid():
         t=save_transaction(form,div,request.user); files(request,div,{'transaction':t})
@@ -156,8 +164,14 @@ def transaction_form(request,div,entry_id=None):
 @workspace_view
 def transaction_detail(request,div,entry_id):
     t=get_object_or_404(FinanceTransaction,division=div,pk=entry_id)
+    linked=bool(t.mold_id or t.batch_id or t.invoice_id or hasattr(t,'capital_contribution') or hasattr(t,'capital_repayment'))
+    if request.method=='POST':
+        require_role(request.user,div,('operator',))
+        if not request.FILES.getlist('files'): raise BusinessError('Choose at least one file.')
+        files(request,div,{'transaction':t})
+        return redirect('simple_transaction_detail',division_id=div.pk,entry_id=t.pk)
     return render(request,'core/simple_transaction_detail.html',ctx(request,div,'transactions',entry=t,balance=outstanding(t),
-        attachments=t.attachments.select_related('document'),revisions=t.revisions.select_related('actor').order_by('-created_at')))
+        linked=linked,attachments=t.attachments.select_related('document'),revisions=t.revisions.select_related('actor').order_by('-created_at')))
 
 class ScenarioForm(forms.ModelForm):
     class Meta:
@@ -254,7 +268,7 @@ def documents(request,div):
         return redirect('simple_documents',division_id=div.pk)
     qs=Document.objects.filter(division=div).defer('content').order_by('-created_at')
     q=request.GET.get('q','').strip()[:100]
-    if q: qs=qs.filter(Q(name__icontains=q)|Q(simple_links__category__icontains=q)|Q(simple_links__supplier__icontains=q)|Q(simple_links__reference__icontains=q)).distinct()
+    if q: qs=qs.filter(Q(name__icontains=q)|Q(simple_links__category__icontains=q)|Q(simple_links__supplier__icontains=q)|Q(simple_links__reference__icontains=q)|Q(workflowattachment__category__icontains=q)|Q(workflowattachment__supplier__icontains=q)|Q(workflowattachment__reference__icontains=q)).distinct()
     start,end,_=filters(request)
     if start: qs=qs.filter(created_at__date__gte=start)
     if end: qs=qs.filter(created_at__date__lte=end)
@@ -273,12 +287,17 @@ def document_preview(request,div,document_id):
 @workspace_view
 def reports_view(request,div):
     data=summary(div,*filters(request)); legacy=reports.report(div)
+    from .manufacturing import manufacturing_totals,performance_by_period
+    mfg=manufacturing_totals(div,*filters(request))
     return render(request,'core/simple_reports.html',ctx(request,div,'reports',summary=data,legacy=legacy,
-        entries=filtered_entries(div,request)[:100]))
+        mfg=mfg,performance=performance_by_period(div,*filters(request)[:2]),entries=filtered_entries(div,request)[:100]))
 
 @workspace_view
 def export_view(request,div,kind):
     entries=list(filtered_entries(div,request)); data=summary(div,*filters(request))
+    from .manufacturing import manufacturing_totals,performance_by_period
+    mfg=manufacturing_totals(div,*filters(request))
+    performance=performance_by_period(div,*filters(request)[:2])
     def safe_cell(value):
         value=str(value)
         return "'"+value if value.lstrip().startswith(('=','+','-','@')) else value
@@ -291,6 +310,14 @@ def export_view(request,div,kind):
         wb=Workbook(); ws=wb.active; ws.title='Transactions'
         ws.append(['Date','Direction','Cash SAR','Total owed SAR','Category','Description','Payer or payee','Method','Reference','Profit treatment','Recognized SAR'])
         for t in entries: ws.append([t.date,t.direction,float(t.amount),float(t.total_due) if t.total_due is not None else None,safe_cell(t.category),safe_cell(t.description),safe_cell(t.party),t.method,safe_cell(t.reference),t.treatment,float(t.recognized_amount)])
+        performance_sheet=wb.create_sheet('Manufacturing summary')
+        performance_sheet.append(['Measure','SAR or units'])
+        for label,key in [('Sales revenue','sales'),('Goods cost on dispatch','cogs'),('Gross profit','gross'),('Expenses and write-offs','expenses'),('Estimated profit','profit'),('Inventory value','inventory_value'),('Units in stock','inventory_units'),('Mold balances due','mold_due'),('Production balances due','production_due'),('Customer balances due','receivables'),('Capital contributed','capital'),('Capital repaid','capital_repaid'),('Confirmed funding due','funding_due')]:
+            performance_sheet.append([label,float(mfg[key])])
+        for period,rows in [('Monthly performance',performance['months']),('Yearly performance',performance['years'])]:
+            sheet=wb.create_sheet(period); sheet.append(['Period','Sales SAR','Goods cost SAR','Expenses SAR','Other adjustments SAR','Estimated profit SAR'])
+            for name,row in rows:
+                sheet.append([name,*[float(row[key]) for key in ('sales','cogs','expenses','other','profit')]])
         buffer=io.BytesIO(); wb.save(buffer); buffer.seek(0)
         return FileResponse(buffer,as_attachment=True,filename='transactions.xlsx',content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     if kind=='pdf':
@@ -299,6 +326,9 @@ def export_view(request,div,kind):
         buffer=io.BytesIO(); pdf=canvas.Canvas(buffer,pagesize=A4); y=800
         pdf.setFont('Helvetica-Bold',15); pdf.drawString(45,y,'Business finance report (SAR)'); y-=28
         pdf.setFont('Helvetica',10)
+        for label,key in [('Sales revenue','sales'),('Goods cost on dispatch','cogs'),('Gross profit','gross'),('Estimated accounting profit','profit'),('Inventory value','inventory_value'),('Mold payments due','mold_due'),('Production payments due','production_due'),('Customer balances due','receivables')]:
+            pdf.drawString(45,y,f'{label}: {mfg[key]}'); y-=16
+        y-=12
         for label,key in [('Money received','received'),('Money paid','paid'),('Net cash movement','net_cash'),('Income','income'),('Expenses','expenses'),('Estimated profit','profit'),('Receivables','receivable'),('Payables','payable')]:
             pdf.drawString(45,y,f'{label}: {data[key]}'); y-=16
         y-=16; pdf.drawString(45,y,'Recent transactions'); y-=18

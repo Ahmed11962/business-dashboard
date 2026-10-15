@@ -15,6 +15,7 @@ with psycopg.connect(os.environ['DATABASE_URL']) as conn:
     conn.execute(sql.SQL('GRANT USAGE ON SCHEMA public TO {}').format(sql.Identifier(role)))
     conn.execute(sql.SQL('GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO {}').format(sql.Identifier(role)))
     conn.execute(sql.SQL('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {}').format(sql.Identifier(role)))
+    conn.execute(sql.SQL('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO {}').format(sql.Identifier(role)))
     conn.execute(sql.SQL('GRANT DELETE ON django_session TO {}').format(sql.Identifier(role)))
     # Deny changing the financial boundary or authority using the app identity.
     for table in ('core_entity','core_division','core_membership','core_invitation'):

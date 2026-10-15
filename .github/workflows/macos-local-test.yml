@@ -1,0 +1,22 @@
+name: macOS local setup
+
+on:
+  push:
+    branches: [manufacturing-workflow]
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install and start private PostgreSQL
+        run: ./scripts/install.sh
+      - name: Test manufacturing and finance workflows
+        run: .venv/bin/python -m pytest tests/test_manufacturing.py tests/test_simple_finance.py -q
+      - name: Check migrations and application integrity
+        run: |
+          .venv/bin/python manage.py check
+          .venv/bin/python manage.py makemigrations --check --dry-run
+          .venv/bin/python manage.py verify_integrity

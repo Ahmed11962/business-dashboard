@@ -14,5 +14,6 @@ uv sync --frozen --python 3.12
 .venv/bin/python manage.py seed_workspace --demo
 .venv/bin/python manage.py seed_sample_transactions
 .venv/bin/python manage.py seed_simple_sample
+.venv/bin/python manage.py seed_manufacturing_sample
 .venv/bin/python manage.py collectstatic --noinput
 .venv/bin/python manage.py check

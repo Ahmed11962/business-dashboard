@@ -63,16 +63,34 @@ Nothing in local testing sends real payments, transfers, statutory invoices, or 
 - If port 8000 is busy, close the other app using it, then rerun `./scripts/start.sh`.
 - If an invitation expired, ask for a new local invitation before creating a user; do not share the private path publicly.
 
-## Update an existing Mac installation safely
+## Try the manufacturing dashboard on your existing Mac
 
-Your Mac's database is **not** in GitHub. Keep `~/business-dashboard/.runtime/` and do not clone over or delete your existing folder. Close the running app Terminal window, then open Terminal and run these commands one at a time:
+The finished redesign is on the `manufacturing-workflow` development branch. Your local database and attachments are in `.runtime/`, outside Git. These steps keep them in place. Close the Terminal window running the app, then enter these lines one at a time:
 
 ```sh
 cd ~/business-dashboard
-git pull --ff-only origin main
 ./scripts/backup_before_upgrade.sh
+git status --short
+git fetch origin
+git switch --track origin/manufacturing-workflow
 ./scripts/install.sh
 ./scripts/start.sh
 ```
 
-The backup command saves a full PostgreSQL backup, including stored document bytes and accounts, in `~/business-dashboard/.runtime/backups/` with a checksum. The install command adds the new tables through migrations and leaves the old tables and records intact. It adds simple synthetic examples only to the Test workspace if there are no existing simple entries. Your old invitation, password and authenticator remain valid; after startup, open **http://127.0.0.1:8000/login/**. If `git pull` reports local changes or the backup command fails, stop and keep your existing folder unchanged rather than deleting it.
+`git status --short` should show no source-code changes before switching branches. If `git switch --track` says the branch already exists locally, run `git switch manufacturing-workflow` and then `git pull --ff-only origin manufacturing-workflow`. If any command reports a conflict or failed backup, stop and keep the folder unchanged. Do not delete `.runtime/` or clone over the existing folder.
+
+Open **http://127.0.0.1:8000/login/** and sign in with your existing email, password, and authenticator code. Choose **Test workspace** to explore the synthetic basket mold, production order, accepted inventory, sale, partial collection, and example capital. The live workspace is separate. Creating a local record does not send a payment or issue a statutory tax invoice.
+
+The pre-upgrade dump and SHA-256 file are stored under `~/business-dashboard/.runtime/backups/`. The install script applies additive migrations and adds the basket example only if it is absent from Test. Existing users, documents, records, and audit history remain in the same local PostgreSQL database. Tomorrow, run `cd ~/business-dashboard` and `./scripts/start.sh`, then open the same login URL.
+
+To update this branch later, stop the app and run:
+
+```sh
+cd ~/business-dashboard
+./scripts/backup_before_upgrade.sh
+git pull --ff-only origin manufacturing-workflow
+./scripts/install.sh
+./scripts/start.sh
+```
+
+The dashboard is for internal management testing. Before live financial use, have your accountant confirm the authoritative books and opening balances, have the partners confirm legal funding and distribution terms, and configure a malware scanner for live document previews and downloads. The internal sales PDF is not a verified ZATCA tax invoice.
